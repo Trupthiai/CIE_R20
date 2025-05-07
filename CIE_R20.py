@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import random
+from io import BytesIO
 
 st.set_page_config(page_title="CIE R20 Marks Divider", layout="centered")
 st.title("📊 CIE R20 Marks Divider App")
@@ -8,14 +9,14 @@ st.title("📊 CIE R20 Marks Divider App")
 st.markdown("""
 This app divides **Total Marks (out of 20)** into:
 - **Part A**: Random value from 0 to 5
-- **Part B**: Remaining marks (max 15) distributed randomly among 3 out of 5 questions (Q1–Q5)
+- **Part B**: Remaining marks (max 15) distributed among any 3 out of 5 questions (Q1–Q5)
 
 ---
 
 ✅ **Instructions**:
 1. Upload an Excel (`.xlsx`) or CSV (`.csv`) file with a column named **`Total Marks`**
-2. Get Part A and Part B (`Q1–Q5`) distributions
-3. Download the output file as `.csv`
+2. App will compute marks distribution
+3. You can download the result as an Excel file
 """)
 
 uploaded_file = st.file_uploader("📁 Upload marks file", type=["csv", "xlsx"])
@@ -60,12 +61,17 @@ if uploaded_file:
             st.success("✅ Marks successfully distributed!")
             st.dataframe(df)
 
-            csv_output = df.to_csv(index=False).encode('utf-8')
+            # Save to Excel in memory
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False, sheet_name='Distributed Marks')
+            output.seek(0)
+
             st.download_button(
-                label="⬇️ Download Result as CSV",
-                data=csv_output,
-                file_name="CIE_R20_Distributed_Marks.csv",
-                mime="text/csv"
+                label="⬇️ Download Result as Excel (.xlsx)",
+                data=output,
+                file_name="CIE_R20_Distributed_Marks.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
     except Exception as e:
