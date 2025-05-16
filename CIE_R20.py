@@ -7,9 +7,10 @@ st.set_page_config(page_title="CIE R20 Marks Divider", layout="centered")
 st.title("📊 CIE R20 Marks Divider App")
 
 st.markdown("""
-This app divides **Total Marks (out of 20)** into:
-- **Part A**: Random value from 0 to 5
-- **Part B**: Remaining marks (max 15) distributed among any 3 out of 5 questions (Q1–Q5)
+This app divides **Total Marks (out of 40)** into:
+- **Part A**: Random value between 1 to 5
+- **Part B**: Remaining marks (max 35), distributed among any 3 out of 5 questions (Q1–Q5)
+  - Each question gets **1 to 5 marks**, randomly
 
 ---
 
@@ -36,22 +37,32 @@ if uploaded_file:
 
             for total in df['Total Marks']:
                 total = int(round(total))
-                part_a = random.randint(0, min(5, total))
+
+                # Part A: Between 1 and 5 (inclusive), but not more than total
+                part_a = random.randint(1, min(5, total))
                 part_a_list.append(part_a)
 
                 remaining = total - part_a
                 q_marks = [0] * 5
 
+                # Part B: Distribute remaining marks to 3 out of 5 questions (1-5 marks each)
                 if remaining > 0:
                     selected_qs = random.sample(range(5), 3)
-                    available = min(15, remaining)
+                    question_slots = [0, 0, 0]
 
-                    for idx in selected_qs:
-                        if available == 0:
+                    # Limit each question to max 5 marks and total to remaining
+                    attempts = 0
+                    while True:
+                        attempts += 1
+                        question_slots = [random.randint(1, 5) for _ in range(3)]
+                        if sum(question_slots) <= remaining:
                             break
-                        mark = random.randint(1, min(5, available))
-                        q_marks[idx] = mark
-                        available -= mark
+                        if attempts > 100:  # fallback to safe default if stuck
+                            question_slots = [min(5, remaining // 3)] * 3
+                            break
+
+                    for i, idx in enumerate(selected_qs):
+                        q_marks[idx] = question_slots[i]
 
                 part_b_distributions.append(q_marks)
 
