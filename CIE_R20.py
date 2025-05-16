@@ -23,49 +23,47 @@ This app divides **Total Marks (out of 40)** into:
 
 uploaded_file = st.file_uploader("📁 Upload marks file", type=["csv", "xlsx"])
 
-def valid_distribution(total_sum, num_qs=3, max_mark=5):
+def distribute_marks(total_sum, num_questions=3, min_mark=1, max_mark=5):
     """
-    Distribute total_sum across num_qs questions, each 1 to max_mark.
-    Uses proportional scaling and rounding to guarantee sum == total_sum.
+    Distribute total_sum into num_questions parts each between min_mark and max_mark,
+    sum exactly total_sum. Return None if impossible.
+    Uses a backtracking / recursive approach.
     """
-    if total_sum < num_qs or total_sum > num_qs * max_mark:
-        # impossible to distribute
+    if total_sum < num_questions * min_mark or total_sum > num_questions * max_mark:
         return None
 
-    base = [1] * num_qs
-    total_sum -= num_qs  # subtract the base marks
+    result = []
 
-    increments = [random.random() for _ in range(num_qs)]
-    increments_sum = sum(increments)
+    def backtrack(remaining, parts_left):
+        if parts_left == 1:
+            if min_mark <= remaining <= max_mark:
+                result.append(remaining)
+                return True
+            else:
+                return False
 
-    scaled = [ (inc / increments_sum) * total_sum for inc in increments]
+        for mark in range(min_mark, max_mark+1):
+            if mark <= remaining:
+                result.append(mark)
+                if backtrack(remaining - mark, parts_left - 1):
+                    return True
+                result.pop()
+        return False
 
-    distribution = [base[i] + scaled[i] for i in range(num_qs)]
-    distribution = [min(max_mark, round(x)) for x in distribution]
-
-    diff = total_sum + num_qs - sum(distribution)
-    while diff != 0:
-        for i in range(num_qs):
-            if diff == 0:
-                break
-            if diff > 0 and distribution[i] < max_mark:
-                distribution[i] += 1
-                diff -= 1
-            elif diff < 0 and distribution[i] > 1:
-                distribution[i] -= 1
-                diff += 1
-
-    return distribution
+    if backtrack(total_sum, num_questions):
+        return result
+    else:
+        return None
 
 if uploaded_file:
     try:
-        # Read the uploaded file
+        # Load file
         if uploaded_file.name.endswith('.csv'):
             df = pd.read_csv(uploaded_file)
         else:
             df = pd.read_excel(uploaded_file)
 
-        # Remove unnamed columns if any
+        # Remove unnamed cols
         df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
 
         if 'Total Marks' not in df.columns:
@@ -76,30 +74,32 @@ if uploaded_file:
 
             for total in df['Total Marks']:
                 total = int(round(total))
-                total = min(total, 40)  # cap total marks at 40
+                total = min(total, 40)
 
                 part_a = random.randint(0, min(5, total))
                 part_a_list.append(part_a)
 
                 remaining = total - part_a
-                remaining = min(remaining, 15)  # Part B max 15
+                remaining = min(remaining, 15)
 
                 q_marks = [''] * 5
 
-                if remaining >= 3:  # minimum 1 mark in each of 3 questions
+                if remaining >= 3:  # minimum 1 mark each for 3 questions
                     selected_qs = random.sample(range(5), 3)
-                    distribution = valid_distribution(remaining, 3, 5)
+                    distribution = distribute_marks(remaining, 3, 1, 5)
                     if distribution:
                         for i, idx in enumerate(selected_qs):
                             q_marks[idx] = distribution[i]
                     else:
-                        # fallback if distribution fails
+                        # fallback: assign 1 mark each for 3 questions, and adjust Part A if needed
                         for i, idx in enumerate(selected_qs):
                             q_marks[idx] = 1
+                        # adjust part_a to maintain total sum if needed
+                        sum_q = sum([x for x in q_marks if isinstance(x, int)])
+                        part_a_list[-1] = total - sum_q
                 elif remaining > 0:
-                    # If remaining less than 3, assign 1 mark each to that many questions randomly
-                    count = remaining
-                    selected_qs = random.sample(range(5), count)
+                    # If remaining < 3, assign 1 mark to as many questions as possible
+                    selected_qs = random.sample(range(5), remaining)
                     for idx in selected_qs:
                         q_marks[idx] = 1
 
@@ -109,15 +109,12 @@ if uploaded_file:
             part_b_df = pd.DataFrame(part_b_distributions, columns=['Q1', 'Q2', 'Q3', 'Q4', 'Q5'])
             df = pd.concat([df, part_b_df], axis=1)
 
-            # Verify total sum == input total marks
             df['Part B Total'] = part_b_df.apply(lambda row: sum([x if isinstance(x, int) else 0 for x in row]), axis=1)
             df['Total Check'] = df['Part A'] + df['Part B Total']
 
-            # Show table
             st.success("✅ Marks successfully distributed!")
             st.dataframe(df)
 
-            # Download as Excel
             output = BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 df.to_excel(writer, index=False, sheet_name='Distributed Marks')
@@ -132,6 +129,5 @@ if uploaded_file:
 
     except Exception as e:
         st.error(f"❌ Error processing file: {e}")
-
 else:
     st.info("Please upload a `.csv` or `.xlsx` file to begin.")
