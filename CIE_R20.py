@@ -8,8 +8,8 @@ st.title("📊 CIE R20 Marks Divider App")
 
 st.markdown("""
 This app divides **Total Marks (out of 40)** into:
-- **Part A**: Random value from 1 to 5
-- **Part B**: Remaining marks (max 15) distributed among any 3 out of 5 questions (Q1–Q5)
+- **Part A**: 1 to 5 marks
+- **Part B**: Remaining marks (max 15), distributed among **any 3 of 5 questions** (Q1–Q5), 1 to 5 marks each.
 
 ---
 
@@ -19,33 +19,26 @@ This app divides **Total Marks (out of 40)** into:
 3. You can download the result as an Excel file
 """)
 
-uploaded_file = st.file_uploader("📁 Upload marks file", type=["csv", "xlsx"])
-
 def distribute_marks(total):
-    if total < 1:
-        return 0, [0]*5
     for _ in range(1000):
         part_a = random.randint(1, min(5, total))
         remaining = total - part_a
-
         if remaining < 3 or remaining > 15:
             continue
 
-        indices = random.sample(range(5), 3)
-        q_marks = [0] * 5
-        success = False
+        selected_qs = random.sample(range(5), 3)
+        q_marks = [None] * 5
 
-        for _ in range(100):
+        # Try 500 times to get a valid distribution summing to 'remaining'
+        for _ in range(500):
             marks = [random.randint(1, 5) for _ in range(3)]
             if sum(marks) == remaining:
-                for i, idx in enumerate(indices):
+                for i, idx in enumerate(selected_qs):
                     q_marks[idx] = marks[i]
-                success = True
-                break
+                return part_a, q_marks
+    return 0, [None] * 5  # fallback
 
-        if success:
-            return part_a, q_marks
-    return 0, [0]*5  # fallback
+uploaded_file = st.file_uploader("📁 Upload marks file", type=["csv", "xlsx"])
 
 if uploaded_file:
     try:
@@ -57,7 +50,6 @@ if uploaded_file:
         if 'Total Marks' not in df.columns:
             st.error("❌ The uploaded file must contain a column named 'Total Marks'.")
         else:
-            df = df[['Total Marks']].copy()
             part_a_list = []
             part_b_list = []
 
@@ -68,15 +60,15 @@ if uploaded_file:
                 part_b_list.append(q_marks)
 
             df['Part A'] = part_a_list
-            q_df = pd.DataFrame(part_b_list, columns=['Q1', 'Q2', 'Q3', 'Q4', 'Q5'])
-            df = pd.concat([df, q_df], axis=1)
+            part_b_df = pd.DataFrame(part_b_list, columns=['Q1', 'Q2', 'Q3', 'Q4', 'Q5'])
+            df = pd.concat([df, part_b_df], axis=1)
 
-            # Add total verification column
-            df['Total Check'] = df['Part A'] + df[['Q1', 'Q2', 'Q3', 'Q4', 'Q5']].sum(axis=1)
+            df['Total Check'] = df['Part A'].fillna(0) + part_b_df.fillna(0).sum(axis=1)
 
             st.success("✅ Marks successfully distributed!")
-            st.dataframe(df.style.highlight_max(axis=1, color='lightgreen'))
+            st.dataframe(df)
 
+            # Save to Excel in memory
             output = BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 df.to_excel(writer, index=False, sheet_name='Distributed Marks')
