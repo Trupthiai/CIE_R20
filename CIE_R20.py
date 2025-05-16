@@ -23,8 +23,8 @@ uploaded_file = st.file_uploader("📁 Upload marks file", type=["csv", "xlsx"])
 
 def distribute_marks(total):
     if total < 1:
-        return 0, ['']*5
-    for _ in range(1000):  # Retry attempts for valid combinations
+        return 0, [0]*5
+    for _ in range(1000):
         part_a = random.randint(1, min(5, total))
         remaining = total - part_a
 
@@ -32,10 +32,10 @@ def distribute_marks(total):
             continue
 
         indices = random.sample(range(5), 3)
-        q_marks = [''] * 5
+        q_marks = [0] * 5
         success = False
 
-        for _ in range(100):  # Try to find a valid distribution for Part B
+        for _ in range(100):
             marks = [random.randint(1, 5) for _ in range(3)]
             if sum(marks) == remaining:
                 for i, idx in enumerate(indices):
@@ -45,7 +45,7 @@ def distribute_marks(total):
 
         if success:
             return part_a, q_marks
-    return 0, ['']*5  # Fallback
+    return 0, [0]*5  # fallback
 
 if uploaded_file:
     try:
@@ -71,8 +71,11 @@ if uploaded_file:
             q_df = pd.DataFrame(part_b_list, columns=['Q1', 'Q2', 'Q3', 'Q4', 'Q5'])
             df = pd.concat([df, q_df], axis=1)
 
+            # Add total verification column
+            df['Total Check'] = df['Part A'] + df[['Q1', 'Q2', 'Q3', 'Q4', 'Q5']].sum(axis=1)
+
             st.success("✅ Marks successfully distributed!")
-            st.dataframe(df)
+            st.dataframe(df.style.highlight_max(axis=1, color='lightgreen'))
 
             output = BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
