@@ -22,7 +22,6 @@ This app divides **Total Marks (out of 40)** into:
 def generate_valid_combination(total_b):
     if total_b < 3 or total_b > 15:
         return None
-    # generate all triples between 1 and 5 inclusive that sum to total_b
     combinations = [(i, j, k) for i in range(1,6)
                               for j in range(1,6)
                               for k in range(1,6)
@@ -44,15 +43,14 @@ if uploaded_file:
             part_a_list = []
             part_b_rows = []
 
-            for total in df['Total Marks']:
+            for idx, total in enumerate(df['Total Marks']):
                 total = int(round(total))
 
                 if total < 4:
-                    # If total marks < 4, assign all to Part A and Part B as None
+                    # All marks to Part A, Part B empty
                     part_a = total
-                    part_b = [None] * 5
+                    part_b = [None]*5
                 else:
-                    # Part A between 1 and min(5, total-3) to leave at least 3 for Part B
                     max_part_a = min(5, total - 3)
                     part_a = random.randint(1, max_part_a)
 
@@ -60,21 +58,20 @@ if uploaded_file:
                     combo = generate_valid_combination(part_b_total)
 
                     if combo is None:
-                        # No valid triple found: Part B all None
-                        part_b = [None] * 5
+                        part_b = [None]*5
                     else:
-                        q_indices = random.sample(range(5), 3)
-                        part_b = [None] * 5
-                        for idx, val in zip(q_indices, combo):
-                            part_b[idx] = val
+                        selected_qs = random.sample(range(5), 3)
+                        # Assign marks exactly in order to selected questions
+                        part_b = [None]*5
+                        for i, q_idx in enumerate(selected_qs):
+                            part_b[q_idx] = combo[i]
 
                 part_a_list.append(part_a)
                 part_b_rows.append(part_b)
 
             df['Part A'] = part_a_list
-            df[['Q1', 'Q2', 'Q3', 'Q4', 'Q5']] = pd.DataFrame(part_b_rows, index=df.index)
+            df[['Q1','Q2','Q3','Q4','Q5']] = pd.DataFrame(part_b_rows, index=df.index)
 
-            # Calculate total to verify sum matches input Total Marks
             df['Total Calculated'] = df['Part A'].fillna(0) + df[['Q1','Q2','Q3','Q4','Q5']].fillna(0).sum(axis=1)
 
             st.success("✅ Marks successfully distributed!")
