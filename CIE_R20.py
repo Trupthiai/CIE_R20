@@ -24,16 +24,16 @@ uploaded_file = st.file_uploader("📁 Upload marks file", type=["csv", "xlsx"])
 
 if uploaded_file:
     try:
-        # Read file
+        # Read the uploaded file
         if uploaded_file.name.endswith('.csv'):
             df = pd.read_csv(uploaded_file)
         else:
             df = pd.read_excel(uploaded_file)
 
-        # Remove any unnamed column (like index)
+        # Remove any unnamed columns (e.g., index columns)
         df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
 
-        # Check required column
+        # Validate the required column
         if 'Total Marks' not in df.columns:
             st.error("❌ The uploaded file must contain a column named 'Total Marks'.")
         else:
@@ -43,39 +43,35 @@ if uploaded_file:
             for total in df['Total Marks']:
                 total = int(round(total))
 
-                # Part A (1 to 5, not more than total)
+                # Assign Part A marks between 1 and 5 (not exceeding total)
                 part_a = random.randint(1, min(5, total))
                 part_a_list.append(part_a)
 
                 remaining = total - part_a
                 q_marks = [''] * 5
 
-                # Part B: Allocate marks between 3 random questions, each 1–5
                 if remaining > 0:
                     selected_qs = random.sample(range(5), 3)
-                    valid_distribution_found = False
+                    # Try generating a valid random distribution that fits within remaining marks
                     for _ in range(100):
                         trial = [random.randint(1, 5) for _ in range(3)]
                         if sum(trial) <= remaining:
                             for i, idx in enumerate(selected_qs):
                                 q_marks[idx] = trial[i]
-                            valid_distribution_found = True
                             break
-                    if not valid_distribution_found:
-                        # fallback: equal distribution if stuck
-                        base = min(5, remaining // 3)
-                        for i, idx in enumerate(selected_qs):
-                            q_marks[idx] = base
 
                 part_b_distributions.append(q_marks)
 
+            # Assign new columns to DataFrame
             df['Part A'] = part_a_list
-            df[['Q1', 'Q2', 'Q3', 'Q4', 'Q5']] = pd.DataFrame(part_b_distributions, index=df.index)
+            part_b_df = pd.DataFrame(part_b_distributions, columns=['Q1', 'Q2', 'Q3', 'Q4', 'Q5'])
+            df = pd.concat([df, part_b_df], axis=1)
 
+            # Display result
             st.success("✅ Marks successfully distributed!")
             st.dataframe(df)
 
-            # Save to Excel
+            # Prepare downloadable Excel file
             output = BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 df.to_excel(writer, index=False, sheet_name='Distributed Marks')
