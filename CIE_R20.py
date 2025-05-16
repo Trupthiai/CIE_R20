@@ -8,8 +8,10 @@ st.title("📊 CIE R20 Marks Divider App")
 
 st.markdown("""
 This app divides **Total Marks (out of 40)** into:
-- **Part A**: 1 to 5 marks
-- **Part B**: Remaining marks (max 15), distributed among **3 of 5 questions (Q1–Q5)** with 1 to 5 marks each.
+- **Part A**: Random value between 1 to 5
+- **Part B**: Remaining marks (max 35), distributed among any 3 out of 5 questions (Q1–Q5)
+  - Each selected question gets **1 to 5 marks**
+  - Remaining 2 questions are **blank**
 
 ---
 
@@ -19,64 +21,69 @@ This app divides **Total Marks (out of 40)** into:
 3. Download the result as an Excel file
 """)
 
-def generate_valid_combination(total_b):
-    if total_b < 3 or total_b > 15:
-        return None
-    combinations = [(i, j, k) for i in range(1,6)
-                              for j in range(1,6)
-                              for k in range(1,6)
-                    if i + j + k == total_b]
-    return random.choice(combinations) if combinations else None
-
 uploaded_file = st.file_uploader("📁 Upload marks file", type=["csv", "xlsx"])
+
+def valid_distribution(remaining, num_qs=3, max_mark=5):
+    """Generate a list of `num_qs` integers (1 to max_mark) that sum to `remaining`."""
+    attempts = 0
+    while attempts < 1000:
+        trial = [random.randint(1, max_mark) for _ in range(num_qs)]
+        if sum(trial) == remaining:
+            return trial
+        attempts += 1
+    return None
 
 if uploaded_file:
     try:
+        # Read file
         if uploaded_file.name.endswith('.csv'):
             df = pd.read_csv(uploaded_file)
         else:
             df = pd.read_excel(uploaded_file)
 
+        # Remove unnamed columns
+        df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
+
+        # Validate 'Total Marks'
         if 'Total Marks' not in df.columns:
             st.error("❌ The uploaded file must contain a column named 'Total Marks'.")
         else:
             part_a_list = []
-            part_b_rows = []
+            part_b_distributions = []
 
-            for idx, total in enumerate(df['Total Marks']):
+            for total in df['Total Marks']:
                 total = int(round(total))
-
-                if total < 4:
-                    # All marks to Part A, Part B empty
-                    part_a = total
-                    part_b = [None]*5
-                else:
-                    max_part_a = min(5, total - 3)
-                    part_a = random.randint(1, max_part_a)
-
-                    part_b_total = total - part_a
-                    combo = generate_valid_combination(part_b_total)
-
-                    if combo is None:
-                        part_b = [None]*5
-                    else:
-                        selected_qs = random.sample(range(5), 3)
-                        # Assign marks exactly in order to selected questions
-                        part_b = [None]*5
-                        for i, q_idx in enumerate(selected_qs):
-                            part_b[q_idx] = combo[i]
-
+                part_a = random.randint(1, min(5, total))
                 part_a_list.append(part_a)
-                part_b_rows.append(part_b)
 
+                remaining = total - part_a
+                q_marks = [''] * 5
+
+                if remaining > 0:
+                    selected_qs = random.sample(range(5), 3)
+                    distribution = valid_distribution(min(remaining, 15), num_qs=3, max_mark=5)
+
+                    if distribution and sum(distribution) <= remaining:
+                        for i, idx in enumerate(selected_qs):
+                            q_marks[idx] = distribution[i]
+
+                part_b_distributions.append(q_marks)
+
+            # Assign to DataFrame
             df['Part A'] = part_a_list
-            df[['Q1','Q2','Q3','Q4','Q5']] = pd.DataFrame(part_b_rows, index=df.index)
+            part_b_df = pd.DataFrame(part_b_distributions, columns=['Q1', 'Q2', 'Q3', 'Q4', 'Q5'])
+            df = pd.concat([df, part_b_df], axis=1)
 
-            df['Total Calculated'] = df['Part A'].fillna(0) + df[['Q1','Q2','Q3','Q4','Q5']].fillna(0).sum(axis=1)
+            # Optional: total check
+            df['Part B Total'] = part_b_df.apply(lambda row: sum([x if isinstance(x, int) else 0 for x in row]), axis=1)
+            df['Total Check'] = df['Part A'] + df['Part B Total']
+            df.drop(columns=['Part B Total'], inplace=True)  # optional
 
+            # Show in app
             st.success("✅ Marks successfully distributed!")
             st.dataframe(df)
 
+            # Download as Excel
             output = BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 df.to_excel(writer, index=False, sheet_name='Distributed Marks')
