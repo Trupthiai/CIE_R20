@@ -19,24 +19,22 @@ This app divides **Total Marks (out of 40)** into:
 3. You can download the result as an Excel file
 """)
 
-def distribute_marks(total):
-    for _ in range(1000):
-        part_a = random.randint(1, min(5, total))
-        remaining = total - part_a
-        if remaining < 3 or remaining > 15:
-            continue
-
-        selected_qs = random.sample(range(5), 3)
-        q_marks = [None] * 5
-
-        # Try 500 times to get a valid distribution summing to 'remaining'
-        for _ in range(500):
-            marks = [random.randint(1, 5) for _ in range(3)]
-            if sum(marks) == remaining:
-                for i, idx in enumerate(selected_qs):
-                    q_marks[idx] = marks[i]
-                return part_a, q_marks
-    return 0, [None] * 5  # fallback
+def generate_part_b_marks(total_b):
+    # Generate all possible 3-number combinations between 1 and 5 that sum to total_b
+    options = []
+    for i in range(1, 6):
+        for j in range(1, 6):
+            for k in range(1, 6):
+                if i + j + k == total_b:
+                    options.append([i, j, k])
+    if not options:
+        return [None] * 5
+    chosen = random.choice(options)
+    q_indices = random.sample(range(5), 3)
+    marks = [None] * 5
+    for idx, val in zip(q_indices, chosen):
+        marks[idx] = val
+    return marks
 
 uploaded_file = st.file_uploader("📁 Upload marks file", type=["csv", "xlsx"])
 
@@ -55,7 +53,15 @@ if uploaded_file:
 
             for total in df['Total Marks']:
                 total = int(round(total))
-                part_a, q_marks = distribute_marks(total)
+                if total < 4:
+                    # Minimum 1 for Part A and at least 3 for Part B (1+1+1)
+                    part_a = max(1, total)
+                    q_marks = [None] * 5
+                else:
+                    part_a = random.randint(1, min(5, total - 3))
+                    remaining = total - part_a
+                    q_marks = generate_part_b_marks(remaining)
+
                 part_a_list.append(part_a)
                 part_b_list.append(q_marks)
 
