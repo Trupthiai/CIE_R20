@@ -12,7 +12,7 @@ This app divides **Total Marks (out of 40)** into:
 - **Part B**: Remaining marks (max 15), distributed among any 3 out of 5 questions (Q1–Q5)
   - Each selected question gets **1 to 5 marks**
   - Remaining 2 questions are **blank**
-- **Assignment**: Random marks between 16 to 20
+- **Assignment**: Marks between 16 to 20, adjusted to ensure total sum matches input marks
 
 ---
 
@@ -72,54 +72,71 @@ if uploaded_file:
 
                 # Part A between 0 and 5 but not more than total
                 part_a = random.randint(0, min(5, total))
-                remaining = total - part_a
-                remaining = min(remaining, 15)
+
+                remaining_for_part_b_and_assignment = total - part_a
+                remaining_for_part_b = min(15, remaining_for_part_b_and_assignment)
 
                 q_marks = [''] * 5
 
-                if remaining == 0:
-                    # all remaining zero marks
-                    pass
-                elif remaining < 3:
-                    # If remaining less than 3, just assign 1 mark to as many questions as remaining
-                    selected_qs = random.sample(range(5), remaining)
+                if remaining_for_part_b == 0:
+                    # No marks for Part B
+                    part_b_sum = 0
+                elif remaining_for_part_b < 3:
+                    # Assign 1 mark each to as many questions as remaining_for_part_b
+                    selected_qs = random.sample(range(5), remaining_for_part_b)
                     for idx in selected_qs:
                         q_marks[idx] = 1
-                    part_a = total - remaining  # Adjust part_a so sum matches total
+                    part_b_sum = remaining_for_part_b
                 else:
-                    # Distribute remaining exactly among 3 questions 1-5 marks each
+                    # Distribute remaining_for_part_b exactly among 3 questions 1-5 marks each
                     selected_qs = random.sample(range(5), 3)
-                    distribution = distribute_marks(remaining, 3, 1, 5)
+                    distribution = distribute_marks(remaining_for_part_b, 3, 1, 5)
                     if distribution:
                         for i, idx in enumerate(selected_qs):
                             q_marks[idx] = distribution[i]
+                        part_b_sum = sum(distribution)
                     else:
                         # fallback - assign 1 mark each
                         for i, idx in enumerate(selected_qs):
                             q_marks[idx] = 1
-                        part_a = total - 3
+                        part_b_sum = 3
+
+                # Assignment marks to make total sum correct
+                assignment = total - part_a - part_b_sum
+                # Clamp assignment between 16 and 20, adjust if outside
+                if assignment < 16:
+                    assignment = 16
+                elif assignment > 20:
+                    assignment = 20
+
+                # Recalculate total check with adjusted assignment
+                total_check = part_a + part_b_sum + assignment
+
+                # If total_check != total, adjust assignment to fix difference if possible
+                diff = total - total_check
+                adjusted_assignment = assignment + diff
+                if 16 <= adjusted_assignment <= 20:
+                    assignment = adjusted_assignment
+                    total_check = total  # now equal
 
                 part_a_list.append(part_a)
                 part_b_distributions.append(q_marks)
-                assignment_marks.append(random.randint(16, 20))
+                assignment_marks.append(assignment)
 
             df['Part A'] = part_a_list
             part_b_df = pd.DataFrame(part_b_distributions, columns=['Q1', 'Q2', 'Q3', 'Q4', 'Q5'])
             df = pd.concat([df, part_b_df], axis=1)
 
-            # Calculate Part B total
-            df['Part B Total'] = part_b_df.apply(lambda row: sum([x if isinstance(x, int) else 0 for x in row]), axis=1)
             df['Assignment'] = assignment_marks
-            df['Total Check'] = df['Part A'] + df['Part B Total']
+            df['Total Check'] = df['Part A'] + df[['Q1', 'Q2', 'Q3', 'Q4', 'Q5']].fillna(0).astype(int).sum(axis=1) + df['Assignment']
 
-            # Rearrange columns to put Total Check after Assignment and remove Part B Total from display
+            # Rearrange columns: put Total Check after Assignment, remove any temp columns if any
             cols = list(df.columns)
-            cols.remove('Part B Total')
             cols.remove('Total Check')
             cols.remove('Assignment')
             new_order = cols[:]
-            new_order.insert(len(cols), 'Assignment')
-            new_order.insert(len(cols)+1, 'Total Check')
+            new_order.append('Assignment')
+            new_order.append('Total Check')
             df = df[new_order]
 
             st.success("✅ Marks successfully distributed!")
