@@ -24,7 +24,7 @@ uploaded_file = st.file_uploader("📁 Upload marks file", type=["csv", "xlsx"])
 def distribute_marks(total):
     if total < 1:
         return 0, ['']*5
-    for _ in range(1000):
+    for _ in range(1000):  # Retry attempts for valid combinations
         part_a = random.randint(1, min(5, total))
         remaining = total - part_a
 
@@ -34,16 +34,18 @@ def distribute_marks(total):
         indices = random.sample(range(5), 3)
         q_marks = [''] * 5
         success = False
-        for _ in range(100):
+
+        for _ in range(100):  # Try to find a valid distribution for Part B
             marks = [random.randint(1, 5) for _ in range(3)]
             if sum(marks) == remaining:
                 for i, idx in enumerate(indices):
                     q_marks[idx] = marks[i]
                 success = True
                 break
+
         if success:
             return part_a, q_marks
-    return 0, ['']*5
+    return 0, ['']*5  # Fallback
 
 if uploaded_file:
     try:
