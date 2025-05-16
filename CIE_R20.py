@@ -8,9 +8,8 @@ st.title("📊 CIE R20 Marks Divider App")
 
 st.markdown("""
 This app divides **Total Marks (out of 40)** into:
-- **Part A**: Random value between 1 to 5
-- **Part B**: Remaining marks (max 35), distributed among any 3 out of 5 questions (Q1–Q5)
-  - Each selected question gets **1 to 5 marks**, unselected ones are left **blank**
+- **Part A**: Random value from 1 to 5
+- **Part B**: Remaining marks (max 15) distributed among any 3 out of 5 questions (Q1–Q5)
 
 ---
 
@@ -22,56 +21,57 @@ This app divides **Total Marks (out of 40)** into:
 
 uploaded_file = st.file_uploader("📁 Upload marks file", type=["csv", "xlsx"])
 
+def distribute_marks(total):
+    if total < 1:
+        return 0, ['']*5
+    for _ in range(1000):
+        part_a = random.randint(1, min(5, total))
+        remaining = total - part_a
+
+        if remaining < 3 or remaining > 15:
+            continue
+
+        indices = random.sample(range(5), 3)
+        q_marks = [''] * 5
+        success = False
+        for _ in range(100):
+            marks = [random.randint(1, 5) for _ in range(3)]
+            if sum(marks) == remaining:
+                for i, idx in enumerate(indices):
+                    q_marks[idx] = marks[i]
+                success = True
+                break
+        if success:
+            return part_a, q_marks
+    return 0, ['']*5
+
 if uploaded_file:
     try:
-        # Read the uploaded file
         if uploaded_file.name.endswith('.csv'):
             df = pd.read_csv(uploaded_file)
         else:
             df = pd.read_excel(uploaded_file)
 
-        # Remove any unnamed columns (e.g., index columns)
-        df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
-
-        # Validate the required column
         if 'Total Marks' not in df.columns:
             st.error("❌ The uploaded file must contain a column named 'Total Marks'.")
         else:
+            df = df[['Total Marks']].copy()
             part_a_list = []
-            part_b_distributions = []
+            part_b_list = []
 
             for total in df['Total Marks']:
                 total = int(round(total))
-
-                # Assign Part A marks between 1 and 5 (not exceeding total)
-                part_a = random.randint(1, min(5, total))
+                part_a, q_marks = distribute_marks(total)
                 part_a_list.append(part_a)
+                part_b_list.append(q_marks)
 
-                remaining = total - part_a
-                q_marks = [''] * 5
-
-                if remaining > 0:
-                    selected_qs = random.sample(range(5), 3)
-                    # Try generating a valid random distribution that fits within remaining marks
-                    for _ in range(100):
-                        trial = [random.randint(1, 5) for _ in range(3)]
-                        if sum(trial) <= remaining:
-                            for i, idx in enumerate(selected_qs):
-                                q_marks[idx] = trial[i]
-                            break
-
-                part_b_distributions.append(q_marks)
-
-            # Assign new columns to DataFrame
             df['Part A'] = part_a_list
-            part_b_df = pd.DataFrame(part_b_distributions, columns=['Q1', 'Q2', 'Q3', 'Q4', 'Q5'])
-            df = pd.concat([df, part_b_df], axis=1)
+            q_df = pd.DataFrame(part_b_list, columns=['Q1', 'Q2', 'Q3', 'Q4', 'Q5'])
+            df = pd.concat([df, q_df], axis=1)
 
-            # Display result
             st.success("✅ Marks successfully distributed!")
             st.dataframe(df)
 
-            # Prepare downloadable Excel file
             output = BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 df.to_excel(writer, index=False, sheet_name='Distributed Marks')
