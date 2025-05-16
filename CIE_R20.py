@@ -27,7 +27,6 @@ def distribute_marks(total_sum, num_questions=3, min_mark=1, max_mark=5):
     """
     Distribute total_sum into num_questions parts each between min_mark and max_mark,
     sum exactly total_sum. Return None if impossible.
-    Uses a backtracking / recursive approach.
     """
     if total_sum < num_questions * min_mark or total_sum > num_questions * max_mark:
         return None
@@ -57,13 +56,11 @@ def distribute_marks(total_sum, num_questions=3, min_mark=1, max_mark=5):
 
 if uploaded_file:
     try:
-        # Load file
+        # Load file and clean unnamed columns
         if uploaded_file.name.endswith('.csv'):
             df = pd.read_csv(uploaded_file)
         else:
             df = pd.read_excel(uploaded_file)
-
-        # Remove unnamed cols
         df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
 
         if 'Total Marks' not in df.columns:
@@ -74,35 +71,41 @@ if uploaded_file:
 
             for total in df['Total Marks']:
                 total = int(round(total))
-                total = min(total, 40)
+                total = min(total, 40)  # Cap input total to 40 max
 
+                # Part A: random between 0 and min(5, total)
                 part_a = random.randint(0, min(5, total))
-                part_a_list.append(part_a)
 
+                # Remaining for Part B
                 remaining = total - part_a
                 remaining = min(remaining, 15)
 
                 q_marks = [''] * 5
 
-                if remaining >= 3:  # minimum 1 mark each for 3 questions
+                if remaining == 0:
+                    # No marks left for Part B
+                    pass
+                elif remaining < 3:
+                    # Remaining less than min sum for 3 questions (3*1=3), assign 1 mark each to fewer questions
+                    selected_qs = random.sample(range(5), remaining)
+                    for idx in selected_qs:
+                        q_marks[idx] = 1
+                    # Adjust part_a to match total (total - sum(q_marks))
+                    part_a = total - remaining
+                else:
+                    # Try to distribute remaining exactly into 3 questions
                     selected_qs = random.sample(range(5), 3)
                     distribution = distribute_marks(remaining, 3, 1, 5)
                     if distribution:
                         for i, idx in enumerate(selected_qs):
                             q_marks[idx] = distribution[i]
                     else:
-                        # fallback: assign 1 mark each for 3 questions, and adjust Part A if needed
+                        # fallback: assign 1 mark each, adjust part A accordingly
                         for i, idx in enumerate(selected_qs):
                             q_marks[idx] = 1
-                        # adjust part_a to maintain total sum if needed
-                        sum_q = sum([x for x in q_marks if isinstance(x, int)])
-                        part_a_list[-1] = total - sum_q
-                elif remaining > 0:
-                    # If remaining < 3, assign 1 mark to as many questions as possible
-                    selected_qs = random.sample(range(5), remaining)
-                    for idx in selected_qs:
-                        q_marks[idx] = 1
+                        part_a = total - 3
 
+                part_a_list.append(part_a)
                 part_b_distributions.append(q_marks)
 
             df['Part A'] = part_a_list
